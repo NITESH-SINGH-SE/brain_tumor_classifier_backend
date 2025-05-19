@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile, Form
+from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
 from typing import List
@@ -17,10 +17,19 @@ from dotenv import load_dotenv
 import smtplib
 from email.message import EmailMessage
 from fastapi.responses import FileResponse
+import json
+import tempfile
+import unicodedata
 
 load_dotenv()
 
 app = FastAPI()
+
+class SharedStore:
+    def __init__(self):
+        self.value = {}
+
+store = SharedStore()
 
 # Load the trained model once when the server starts
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -83,23 +92,23 @@ def apply_gradcam(image_data, heatmap):
     _, buffer = cv2.imencode('.jpg', superimposed_img)
     return buffer.tobytes()
 
-# def generate_llm_prompt(patient_info):
-#     prompt = f"""
-#         You are a medical assistant. A CNN model has analyzed an MRI scan and predicted the tumor type as **{patient_info.get('prediction')}**.
-#         Patient information:
-#         - Age: {patient_info.get('Age')}
-#         - Gender: {patient_info.get('Gender')}
-#         - Symptoms: {patient_info.get('Symptoms')}
-#         As a medical expert, please examine the patient’s condition by ﬁrst identifying any abnormal. Next, critically analyze there their impact, and clearly state ﬁnal diagnosis regarding what might be causing the clinical deterioration. Finally give a brief description.
-#         Provide a clear medical description of the predicted tumor type, followed by helpful precautions for the patient.
+def generate_llm_prompt(patient_info):
+    prompt = f"""
+        You are a medical assistant. A CNN model has analyzed an MRI scan and predicted the tumor type as **{patient_info.get('prediction')}**.
+        Patient information:
+        - Age: {patient_info.get('age')}
+        - Gender: {patient_info.get('gender')}
+        - Symptoms: {patient_info.get('symptoms')}
+        As a medical expert, please examine the patient’s condition by ﬁrst identifying any abnormal. Next, critically analyze there their impact, and clearly state ﬁnal diagnosis regarding what might be causing the clinical deterioration. Finally give a brief description.
+        Provide a clear medical description of the predicted tumor type, followed by helpful precautions for the patient.
 
-#         Format:
-#         Description: ...
-#         Precautions: ...
-#     """
-#     return prompt
+        Format:
+        Description: ...
+        Precautions: ...
+    """
+    return prompt
 
-# def generate_report(patient_info, filename: str):
+# def generate_llm_report(patient_info, filename: str):
 #     prompt = generate_llm_prompt(patient_info)
 #     response = client.responses.create(
 #             model="gpt-4.1-mini",
@@ -107,7 +116,7 @@ def apply_gradcam(image_data, heatmap):
 #                     {"role": "user", "content": prompt},
 #                     {"role": "user", "content": [{
 #                             "type": "input_image",
-#                             "image_url": f"data:image/jpeg;base64,{base64_image}",
+#                             "image_url": f"data:image/jpeg;base64,{patient_info.get('original_image')}",
 #                         }],
 #                     },
 #                 ],
@@ -132,7 +141,7 @@ def apply_gradcam(image_data, heatmap):
 #     pdf.add_page()
 #     pdf.set_font("Arial", 'B', 16)
 
-#     pdf.cell(0, 10, "Tumor Classification Report", ln=True, align='C')
+#     pdf.cell(0, 10, "Brain Tumor Classification Report", ln=True, align='C')
 #     pdf.set_font("Arial", '', 12)
 #     pdf.ln(10)
 #     for key, value in patient_info.items():
@@ -144,14 +153,27 @@ def apply_gradcam(image_data, heatmap):
 #     pdf.multi_cell(0, 10, f"\nDescription:\n{desc}")
 #     pdf.multi_cell(0, 10, f"\nPrecautions:\n{precautions}")
 
-#     # Add images
-#     def save_img(img, filename):
-#         temp_path = f"./tmp/{filename}"
-#         img.save(temp_path)
-#         return temp_path
+#     # # Add images
+#     # def save_img(img, filename):
+#     #     temp_path = f"./tmp/{filename}"
+#     #     img.save(temp_path)
+#     #     return temp_path
     
-#     ori_path = save_img(original_img, "original.png")
-#     grad_path = save_img(gradcam_img, "gradcam.png")
+#     def save_img(img, filename):
+#         if not img:
+#             return None
+
+#         # Create full path to your local tmp/ directory
+#         tmp_dir = os.path.join(os.path.dirname(__file__), "tmp")
+#         os.makedirs(tmp_dir, exist_ok=True)  # Ensure it exists
+
+#         image_path = os.path.join(tmp_dir, filename)
+
+#         with open(image_path, "wb") as f:
+#             f.write(base64.b64decode(img))
+    
+#     ori_path = save_img(patient_info.get("original_image"), "original.jpg")
+#     grad_path = save_img(patient_info.get("gradcam_image"), "gradcam.jpg")
 
 #     image_width = 90
 #     image_height = 60  # adjust based on aspect ratio
@@ -174,19 +196,13 @@ def apply_gradcam(image_data, heatmap):
 #     # Optional: move cursor below the images if you want to add more content
 #     pdf.set_y(current_y + image_height + spacing + 10)
 
-#     pdf.output(output_path)
-#     return output_path
-
-#     # Images
-#     for label, img_b64 in [("Original Image", data.original_image), ("Grad-CAM Image", data.gradcam_image)]:
-#         image_path = f"/tmp/{label.replace(' ', '_')}.jpg"
-#         with open(image_path, "wb") as f:
-#             f.write(base64.b64decode(img_b64))
-#         pdf.add_page()
-#         pdf.cell(200, 10, txt=label, ln=True)
-#         pdf.image(image_path, x=10, y=30, w=180)
-
 #     pdf.output(filename)
+
+#     return {
+#         "description": desc,
+#         "precautions": precautions,
+#         "filename": filename
+#     }
 
 # def send_email_report(to_email: str, filename: str):
 #     msg = EmailMessage()
@@ -203,12 +219,16 @@ def apply_gradcam(image_data, heatmap):
 #         smtp.login("your-email@example.com", "your-email-password")
 #         smtp.send_message(msg)
 
-# @app.post("/generate_report")
-# async def generate_report(data: ReportRequest, background_tasks: BackgroundTasks):
-#     description = generate_ai_description(data.symptoms, data.prediction)
-#     filename = f"/tmp/{data.name.replace(' ', '_')}_report.pdf"
-#     generate_pdf(data, description, filename)
-#     return {"description": description, "pdf_path": filename}
+# @app.get("/generate_report")
+# async def generate_report(
+#     # patient_info, 
+#     # background_tasks: BackgroundTasks
+#     ):
+#     # description = generate_ai_description(data.symptoms, data.prediction)
+#     filename = f"/tmp/report.pdf"
+#     # generate_pdf(data, description, filename)
+#     # return {"description": description, "pdf_path": filename}
+#     return generate_llm_report(store.value, filename)
 
 # @app.get("/download_report")
 # def download_report(path: str):
@@ -218,6 +238,10 @@ def apply_gradcam(image_data, heatmap):
 # async def email_report(email: EmailStr, path: str, background_tasks: BackgroundTasks):
 #     background_tasks.add_task(send_email_report, email, path)
 #     return {"message": f"Email will be sent to {email}"}
+
+def sanitize_text(text):
+    # Replace curly quotes and other problematic Unicode with safe ASCII
+    return unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii')
 
 @app.post("/predict/")
 async def predict(image: UploadFile = File(...), name: str = Form(...), age: int = Form(...), gender: str = Form(...), email: str = Form(...), symptoms: str = Form(...)):
@@ -230,7 +254,7 @@ async def predict(image: UploadFile = File(...), name: str = Form(...), age: int
     heatmap = make_gradcam_heatmap(img_array, model, last_conv_layer_name)
     gradcam_img = apply_gradcam(img_data, heatmap)
 
-    return {
+    patient_info = {
         "name": name,
         "age": age,
         "gender": gender,
@@ -240,4 +264,115 @@ async def predict(image: UploadFile = File(...), name: str = Form(...), age: int
         "confidence": confidence,
         "original_image": base64.b64encode(img_data).decode(),
         "gradcam_image": base64.b64encode(gradcam_img).decode()
+    }
+
+    prompt = generate_llm_prompt(patient_info)
+    response = client.responses.create(
+            model="gpt-4.1-mini",
+            input=[
+                    {"role": "user", "content": prompt},
+                    {"role": "user", "content": [{
+                            "type": "input_image",
+                            "image_url": f"data:image/jpeg;base64,{patient_info.get('original_image')}",
+                        }],
+                    },
+                ],
+            temperature=0.5,
+        )
+    result = response.output_text
+
+    if "Precautions:" in result:
+        parts = result.split("Precautions:")
+        desc = parts[0].replace("Description:", "").strip()
+        precautions = parts[1].strip()
+    else:
+        desc = result.strip()
+        precautions = "Not provided."
+    
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", 'B', 16)
+
+    pdf.cell(0, 10, "Brain Tumor Classification Report", ln=True, align='C')
+    pdf.set_font("Arial", '', 12)
+    pdf.ln(10)
+    pdf.cell(0, 10, f"Name: {patient_info.get('name')}", ln=True)
+    pdf.cell(0, 10, f"Age: {patient_info.get('age')}", ln=True)
+    pdf.cell(0, 10, f"Gender: {patient_info.get('gender')}", ln=True)
+    pdf.cell(0, 10, f"Symptoms: {patient_info.get('symptoms')}", ln=True)
+    # for key, value in patient_info.items():
+    #     pdf.cell(0, 10, f"{key}: {value}", ln=True)
+    pdf.ln(5)
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 10, f"Prediction: {patient_info.get('prediction')}", ln=True)
+    pdf.set_font("Arial", '', 11)
+    pdf.multi_cell(0, 10, f"\nDescription:\n{sanitize_text(desc)}")
+    pdf.multi_cell(0, 10, f"\nPrecautions:\n{sanitize_text(precautions)}")
+
+    # # Add images
+    # def save_img(img, filename):
+    #     temp_path = f"./tmp/{filename}"
+    #     img.save(temp_path)
+    #     return temp_path
+    def save_img(img, filename):
+        if not img:
+            return None
+
+        # Create full path to your local tmp/ directory
+        tmp_dir = os.path.join(os.path.dirname(__file__), "tmp")
+        os.makedirs(tmp_dir, exist_ok=True)  # Ensure it exists
+
+        image_path = os.path.join(tmp_dir, filename)
+
+        with open(image_path, "wb") as f:
+            f.write(base64.b64decode(img))
+        
+        return image_path
+    
+    ori_path = save_img(patient_info.get("original_image"), "original.jpg")
+    grad_path = save_img(patient_info.get("gradcam_image"), "gradcam.jpg")
+
+    # image_width = 90
+    # image_height = 60  # adjust based on aspect ratio
+    # spacing = 5
+    # page_height = 297  # A4 size in mm
+    # bottom_margin = 10
+
+    # # Get current vertical position
+    # current_y = pdf.get_y()
+
+    # # Ensure there is enough space for images
+    # if current_y + image_height + bottom_margin > page_height:
+    #     pdf.add_page()
+    #     current_y = pdf.get_y()
+
+
+    pdf.add_page()
+    pdf.cell(200, 10, "Original Image", ln=True)
+    pdf.image(ori_path, x=10, y=30, w=180)
+    pdf.add_page()
+    pdf.cell(200, 10, "Grad-CAM Image", ln=True)
+    pdf.image(grad_path, x=10, y=30, w=180)
+
+    # Create full path to your local tmp/ directory
+    tmp_dir = os.path.join(os.path.dirname(__file__), "tmp")
+    os.makedirs(tmp_dir, exist_ok=True)  # Ensure it exists
+
+    report_path = os.path.join(tmp_dir, "report.pdf")
+
+    pdf.output(report_path)
+
+    return {
+        "name": name,
+        "age": age,
+        "gender": gender,
+        "email": email,
+        "symptoms": symptoms,
+        "prediction": pred_class,
+        "confidence": confidence,
+        "original_image": base64.b64encode(img_data).decode(),
+        "gradcam_image": base64.b64encode(gradcam_img).decode(),
+        "description": desc,
+        "precautions": precautions,
+        "report_path": report_path,
     }
