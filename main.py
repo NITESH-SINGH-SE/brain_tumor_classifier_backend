@@ -39,7 +39,7 @@ app.add_middleware(
 )
 
 client = OpenAI()
-class_labels = ['glioma_tumor', 'meningioma_tumor', 'no_tumor', 'pituitary_tumor']
+class_labels = ['Glioma Tumor', 'Meningioma Tumor', 'No Tumor', 'Pituitary Tumor']
 
 class ReportRequest(BaseModel):
     name: str
