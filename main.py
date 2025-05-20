@@ -1,24 +1,17 @@
-from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks, Request
+from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
-from typing import List
 import tensorflow as tf
 from PIL import Image
 import numpy as np
 import cv2
 import io
 import os
-from fastapi.responses import StreamingResponse
 from openai import OpenAI
-from datetime import datetime
 from fpdf import FPDF
 import base64
 from dotenv import load_dotenv
-import smtplib
-from email.message import EmailMessage
 from fastapi.responses import FileResponse
-import json
-import tempfile
 import unicodedata
 
 load_dotenv()
