@@ -208,7 +208,7 @@ def generate_llm_prompt(patient_info):
 #     msg = EmailMessage()
 #     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 #     msg['Subject'] = f"Brain Tumor Report - {now}"
-#     msg['From'] = "your-email@example.com"
+#     msg['From'] = os.getenv("EMAIL_USER")
 #     msg['To'] = to_email
 #     msg.set_content(f"Dear user,\n\nPlease find attached the brain tumor report.\nTimestamp: {now}\n\nRegards,\nMedical AI Team")
 
@@ -216,7 +216,7 @@ def generate_llm_prompt(patient_info):
 #         msg.add_attachment(f.read(), maintype='application', subtype='pdf', filename=os.path.basename(filename))
 
 #     with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
-#         smtp.login("your-email@example.com", "your-email-password")
+#         smtp.login(os.getenv("EMAIL_USER"), os.getenv("EMAIL_PASSWORD"))
 #         smtp.send_message(msg)
 
 # @app.get("/generate_report")
@@ -230,9 +230,9 @@ def generate_llm_prompt(patient_info):
 #     # return {"description": description, "pdf_path": filename}
 #     return generate_llm_report(store.value, filename)
 
-# @app.get("/download_report")
-# def download_report(path: str):
-#     return FileResponse(path, filename=os.path.basename(path), media_type='application/pdf')
+@app.get("/download_report")
+def download_report(path: str):
+    return FileResponse(path, filename=os.path.basename(path), media_type='application/pdf')
 
 # @app.post("/email_report")
 # async def email_report(email: EmailStr, path: str, background_tasks: BackgroundTasks):
