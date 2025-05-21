@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile, Form
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
 import tensorflow as tf
@@ -238,134 +238,138 @@ def sanitize_text(text):
 
 @app.post("/predict/")
 async def predict(image: UploadFile = File(...), name: str = Form(...), age: int = Form(...), gender: str = Form(...), email: str = Form(...), symptoms: str = Form(...)):
-    img_data = await image.read()
-    img_array = preprocess_image(img_data)
-    predictions = model.predict(img_array)[0]
-    pred_class = class_labels[np.argmax(predictions)]
-    confidence = float(np.max(predictions))
+    try:
+        img_data = await image.read()
+        img_array = preprocess_image(img_data)
+        predictions = model.predict(img_array)[0]
+        pred_class = class_labels[np.argmax(predictions)]
+        confidence = float(np.max(predictions))
 
-    heatmap = make_gradcam_heatmap(img_array, model, last_conv_layer_name)
-    gradcam_img = apply_gradcam(img_data, heatmap)
+        heatmap = make_gradcam_heatmap(img_array, model, last_conv_layer_name)
+        gradcam_img = apply_gradcam(img_data, heatmap)
 
-    patient_info = {
-        "name": name,
-        "age": age,
-        "gender": gender,
-        "email": email,
-        "symptoms": symptoms,
-        "prediction": pred_class,
-        "confidence": confidence,
-        "original_image": base64.b64encode(img_data).decode(),
-        "gradcam_image": base64.b64encode(gradcam_img).decode()
-    }
+        patient_info = {
+            "name": name,
+            "age": age,
+            "gender": gender,
+            "email": email,
+            "symptoms": symptoms,
+            "prediction": pred_class,
+            "confidence": confidence,
+            "original_image": base64.b64encode(img_data).decode(),
+            "gradcam_image": base64.b64encode(gradcam_img).decode()
+        }
 
-    prompt = generate_llm_prompt(patient_info)
-    response = client.responses.create(
-            model="gpt-4.1-mini",
-            input=[
-                    {"role": "user", "content": prompt},
-                    {"role": "user", "content": [{
-                            "type": "input_image",
-                            "image_url": f"data:image/jpeg;base64,{patient_info.get('original_image')}",
-                        }],
-                    },
-                ],
-            temperature=0.5,
-        )
-    result = response.output_text
+        prompt = generate_llm_prompt(patient_info)
+        response = client.responses.create(
+                model="gpt-4.1-mini",
+                input=[
+                        {"role": "user", "content": prompt},
+                        {"role": "user", "content": [{
+                                "type": "input_image",
+                                "image_url": f"data:image/jpeg;base64,{patient_info.get('original_image')}",
+                            }],
+                        },
+                    ],
+                temperature=0.5,
+            )
+        result = response.output_text
 
-    if "Precautions:" in result:
-        parts = result.split("Precautions:")
-        desc = parts[0].replace("Description:", "").strip()
-        precautions = parts[1].strip()
-    else:
-        desc = result.strip()
-        precautions = "Not provided."
-    
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", 'B', 16)
+        if "Precautions:" in result:
+            parts = result.split("Precautions:")
+            desc = parts[0].replace("Description:", "").strip()
+            precautions = parts[1].strip()
+        else:
+            desc = result.strip()
+            precautions = "Not provided."
+        
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", 'B', 16)
 
-    pdf.cell(0, 10, "Brain Tumor Classification Report", ln=True, align='C')
-    pdf.set_font("Arial", '', 12)
-    pdf.ln(10)
-    pdf.cell(0, 10, f"Name: {patient_info.get('name')}", ln=True)
-    pdf.cell(0, 10, f"Age: {patient_info.get('age')}", ln=True)
-    pdf.cell(0, 10, f"Gender: {patient_info.get('gender')}", ln=True)
-    pdf.cell(0, 10, f"Symptoms: {patient_info.get('symptoms')}", ln=True)
-    # for key, value in patient_info.items():
-    #     pdf.cell(0, 10, f"{key}: {value}", ln=True)
-    pdf.ln(5)
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, f"Prediction: {patient_info.get('prediction')}", ln=True)
-    pdf.set_font("Arial", '', 11)
-    pdf.multi_cell(0, 10, f"\nDescription:\n{sanitize_text(desc)}")
-    pdf.multi_cell(0, 10, f"\nPrecautions:\n{sanitize_text(precautions)}")
+        pdf.cell(0, 10, "Brain Tumor Classification Report", ln=True, align='C')
+        pdf.set_font("Arial", '', 12)
+        pdf.ln(10)
+        pdf.cell(0, 10, f"Name: {patient_info.get('name')}", ln=True)
+        pdf.cell(0, 10, f"Age: {patient_info.get('age')}", ln=True)
+        pdf.cell(0, 10, f"Gender: {patient_info.get('gender')}", ln=True)
+        pdf.cell(0, 10, f"Symptoms: {patient_info.get('symptoms')}", ln=True)
+        # for key, value in patient_info.items():
+        #     pdf.cell(0, 10, f"{key}: {value}", ln=True)
+        pdf.ln(5)
+        pdf.set_font("Arial", 'B', 12)
+        pdf.cell(0, 10, f"Prediction: {patient_info.get('prediction')}", ln=True)
+        pdf.set_font("Arial", '', 11)
+        pdf.multi_cell(0, 10, f"\nDescription:\n{sanitize_text(desc)}")
+        pdf.multi_cell(0, 10, f"\nPrecautions:\n{sanitize_text(precautions)}")
 
-    # # Add images
-    # def save_img(img, filename):
-    #     temp_path = f"./tmp/{filename}"
-    #     img.save(temp_path)
-    #     return temp_path
-    def save_img(img, filename):
-        if not img:
-            return None
+        # # Add images
+        # def save_img(img, filename):
+        #     temp_path = f"./tmp/{filename}"
+        #     img.save(temp_path)
+        #     return temp_path
+        def save_img(img, filename):
+            if not img:
+                return None
+
+            # Create full path to your local tmp/ directory
+            tmp_dir = os.path.join(os.path.dirname(__file__), "tmp")
+            os.makedirs(tmp_dir, exist_ok=True)  # Ensure it exists
+
+            image_path = os.path.join(tmp_dir, filename)
+
+            with open(image_path, "wb") as f:
+                f.write(base64.b64decode(img))
+            
+            return image_path
+        
+        ori_path = save_img(patient_info.get("original_image"), "original.jpg")
+        grad_path = save_img(patient_info.get("gradcam_image"), "gradcam.jpg")
+
+        # image_width = 90
+        # image_height = 60  # adjust based on aspect ratio
+        # spacing = 5
+        # page_height = 297  # A4 size in mm
+        # bottom_margin = 10
+
+        # # Get current vertical position
+        # current_y = pdf.get_y()
+
+        # # Ensure there is enough space for images
+        # if current_y + image_height + bottom_margin > page_height:
+        #     pdf.add_page()
+        #     current_y = pdf.get_y()
+
+
+        pdf.add_page()
+        pdf.cell(200, 10, "Original Image", ln=True)
+        pdf.image(ori_path, x=10, y=30, w=180)
+        pdf.add_page()
+        pdf.cell(200, 10, "Grad-CAM Image", ln=True)
+        pdf.image(grad_path, x=10, y=30, w=180)
 
         # Create full path to your local tmp/ directory
         tmp_dir = os.path.join(os.path.dirname(__file__), "tmp")
         os.makedirs(tmp_dir, exist_ok=True)  # Ensure it exists
 
-        image_path = os.path.join(tmp_dir, filename)
+        report_path = os.path.join(tmp_dir, "report.pdf")
 
-        with open(image_path, "wb") as f:
-            f.write(base64.b64decode(img))
-        
-        return image_path
-    
-    ori_path = save_img(patient_info.get("original_image"), "original.jpg")
-    grad_path = save_img(patient_info.get("gradcam_image"), "gradcam.jpg")
+        pdf.output(report_path)
 
-    # image_width = 90
-    # image_height = 60  # adjust based on aspect ratio
-    # spacing = 5
-    # page_height = 297  # A4 size in mm
-    # bottom_margin = 10
-
-    # # Get current vertical position
-    # current_y = pdf.get_y()
-
-    # # Ensure there is enough space for images
-    # if current_y + image_height + bottom_margin > page_height:
-    #     pdf.add_page()
-    #     current_y = pdf.get_y()
-
-
-    pdf.add_page()
-    pdf.cell(200, 10, "Original Image", ln=True)
-    pdf.image(ori_path, x=10, y=30, w=180)
-    pdf.add_page()
-    pdf.cell(200, 10, "Grad-CAM Image", ln=True)
-    pdf.image(grad_path, x=10, y=30, w=180)
-
-    # Create full path to your local tmp/ directory
-    tmp_dir = os.path.join(os.path.dirname(__file__), "tmp")
-    os.makedirs(tmp_dir, exist_ok=True)  # Ensure it exists
-
-    report_path = os.path.join(tmp_dir, "report.pdf")
-
-    pdf.output(report_path)
-
-    return {
-        "name": name,
-        "age": age,
-        "gender": gender,
-        "email": email,
-        "symptoms": symptoms,
-        "prediction": pred_class,
-        "confidence": confidence,
-        "original_image": base64.b64encode(img_data).decode(),
-        "gradcam_image": base64.b64encode(gradcam_img).decode(),
-        "description": desc,
-        "precautions": precautions,
-        "report_path": report_path,
-    }
+        return {
+            "name": name,
+            "age": age,
+            "gender": gender,
+            "email": email,
+            "symptoms": symptoms,
+            "prediction": pred_class,
+            "confidence": confidence,
+            "original_image": base64.b64encode(img_data).decode(),
+            "gradcam_image": base64.b64encode(gradcam_img).decode(),
+            "description": desc,
+            "precautions": precautions,
+            "report_path": report_path,
+        }
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
