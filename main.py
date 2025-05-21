@@ -236,7 +236,7 @@ def sanitize_text(text):
     # Replace curly quotes and other problematic Unicode with safe ASCII
     return unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii')
 
-@app.post("/predict/")
+@app.post("/predict")
 async def predict(image: UploadFile = File(...), name: str = Form(...), age: int = Form(...), gender: str = Form(...), email: str = Form(...), symptoms: str = Form(...)):
     try:
         img_data = await image.read()
