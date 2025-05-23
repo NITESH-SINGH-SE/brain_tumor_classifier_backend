@@ -19,8 +19,8 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from fastapi import HTTPException
 
-from db.db import Base, engine, SessionLocal
-from models import TempFile
+from db.database import Base, engine, SessionLocal
+from db.models import TempFile
 
 TEMP_DIR = "tmp"
 # Create tmp dir if not exists

@@ -14,7 +14,15 @@ from dotenv import load_dotenv
 from fastapi.responses import FileResponse
 import unicodedata
 
+from fastapi import Depends
+from sqlalchemy.orm import Session
+from database.database import SessionLocal, engine, get_db
+import database.models as models, database.schemas as schemas
+import uuid
+
 load_dotenv()
+
+models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
@@ -237,8 +245,9 @@ def sanitize_text(text):
     return unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii')
 
 @app.post("/predict")
-async def predict(image: UploadFile = File(...), name: str = Form(...), age: int = Form(...), gender: str = Form(...), email: str = Form(...), symptoms: str = Form(...)):
+async def predict(image: UploadFile = File(...), name: str = Form(...), age: int = Form(...), gender: str = Form(...), email: str = Form(...), symptoms: str = Form(...), db: Session = Depends(get_db)):
     try:
+        session_id = str(uuid.uuid4())
         img_data = await image.read()
         img_array = preprocess_image(img_data)
         predictions = model.predict(img_array)[0]
@@ -355,6 +364,22 @@ async def predict(image: UploadFile = File(...), name: str = Form(...), age: int
         report_path = os.path.join(tmp_dir, "report.pdf")
 
         pdf.output(report_path)
+
+        # Store in DB
+        db_patient = models.Patient(
+            name=name,
+            age=age,
+            gender=gender,
+            symptoms=symptoms,
+            prediction=pred_class,
+            confidence=confidence,
+            original_image=base64.b64encode(img_data).decode(),
+            gradcam_image=base64.b64encode(gradcam_img).decode(),
+            session_id=session_id
+        )
+        db.add(db_patient)
+        db.commit()
+        db.refresh(db_patient)
 
         return {
             "name": name,
