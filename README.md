@@ -1,4 +1,3 @@
-````markdown
 # 🧠 Brain Tumor Classifier Backend
 
 This is the **FastAPI backend** for the Brain Tumor Classifier project. It provides an API for classifying brain tumor images using a deep learning model. It also supports image uploading, prediction, and integration with a frontend application.
