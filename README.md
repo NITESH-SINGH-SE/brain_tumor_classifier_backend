@@ -1,3 +1,5 @@
+Here's your updated and complete `README.md` with **Conda installation instructions** and usage of `environment.yml`, while keeping the original virtualenv setup too for flexibility.
+
 ---
 
 ````markdown
@@ -65,22 +67,6 @@ conda activate tumor-env
 
 ---
 
-### 🧰 Option B: Using pip and virtualenv
-
-**On Linux/macOS:**
-
-```bash
-python3 -m venv venv
-source venv/bin/activate
-```
-
-**On Windows:**
-
-```bash
-python -m venv venv
-venv\Scripts\activate
-```
-
 Then install dependencies:
 
 ```bash
@@ -128,3 +114,10 @@ Visit: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) to see the Swagg
 Feel free to open issues or pull requests for improvements or bug fixes.
 
 ---
+
+## 📜 License
+
+This project is licensed under the MIT License.
+````
+
+Let me know if you'd like a sample `environment.yml` file generated from your existing `requirements.txt`.
