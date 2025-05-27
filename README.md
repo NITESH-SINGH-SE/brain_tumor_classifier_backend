@@ -1,27 +1,130 @@
-# Deploy FastAPI on Render
+---
 
-Use this repo as a template to deploy a Python [FastAPI](https://fastapi.tiangolo.com) service on Render.
+````markdown
+# 🧠 Brain Tumor Classifier Backend
 
-See https://render.com/docs/deploy-fastapi or follow the steps below:
+This is the **FastAPI backend** for the Brain Tumor Classifier project. It provides an API for classifying brain tumor images using a deep learning model. It also supports image uploading, prediction, and integration with a frontend application.
 
-## Manual Steps
+---
 
-1. You may use this repository directly or [create your own repository from this template](https://github.com/render-examples/fastapi/generate) if you'd like to customize the code.
-2. Create a new Web Service on Render.
-3. Specify the URL to your new repository or this repository.
-4. Render will automatically detect that you are deploying a Python service and use `pip` to download the dependencies.
-5. Specify the following as the Start Command.
+## 🔗 Repository
 
-    ```shell
-    uvicorn main:app --host 0.0.0.0 --port $PORT
-    ```
+GitHub: [https://github.com/NITESH-SINGH-SE/brain_tumor_classifier_backend.git](https://github.com/NITESH-SINGH-SE/brain_tumor_classifier_backend.git)
 
-6. Click Create Web Service.
+---
 
-Or simply click:
+## 🛠️ Features
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/render-examples/fastapi)
+- FastAPI-based RESTful backend
+- Predicts brain tumor presence/type from uploaded images
+- OpenAI integration
+- Supports local and remote backend URLs
+- Generates PDF reports (if applicable)
 
-## Thanks
+---
 
-Thanks to [Harish](https://harishgarg.com) for the [inspiration to create a FastAPI quickstart for Render](https://twitter.com/harishkgarg/status/1435084018677010434) and for some sample code!
+## 🧪 Setup Instructions
+
+### ✅ Prerequisites
+
+- Python 3.8+
+- `pip` (Python package manager)
+- (Optional) [Miniconda or Anaconda](https://docs.conda.io/en/latest/miniconda.html) for Conda-based environments
+
+---
+
+### 📦 Step 1: Clone the Repository
+
+```bash
+git clone https://github.com/NITESH-SINGH-SE/brain_tumor_classifier_backend.git
+cd brain_tumor_classifier_backend
+```
+
+---
+
+## 📁 Step 2: Environment Setup
+
+### 🧰 Option A: Using Conda (Recommended)
+
+If you are using Conda and want to replicate the exact environment:
+
+1. Create the environment using the provided `environment.yml` file:
+
+```bash
+conda env create -f environment.yml
+```
+
+2. Activate the environment:
+
+```bash
+conda activate tumor-env
+```
+
+> You can regenerate this file later using:  
+> `conda env export --no-builds > environment.yml`
+
+---
+
+### 🧰 Option B: Using pip and virtualenv
+
+**On Linux/macOS:**
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+**On Windows:**
+
+```bash
+python -m venv venv
+venv\Scripts\activate
+```
+
+Then install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+### 🔐 Step 3: Environment Variables
+
+Create a `.env` file in the root directory and add the following:
+
+```env
+OPENAI_API_KEY=your-openai-api-key
+```
+
+> Make sure not to commit `.env` to version control. It's ignored in `.gitignore`.
+
+---
+
+### 🚀 Step 4: Run the FastAPI Server
+
+```bash
+uvicorn main:app --reload
+```
+
+This will start the server at: [http://127.0.0.1:8000](http://127.0.0.1:8000)
+
+Visit: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) to see the Swagger UI.
+
+---
+
+## 📄 Files Included
+
+- `main.py` — Main FastAPI app
+- `requirements.txt` — pip dependencies
+- `environment.yml` — Conda environment definition
+- `.env` — Secrets like API keys (not included in repo)
+- `README.md` — Setup instructions
+
+---
+
+## 🤝 Contributing
+
+Feel free to open issues or pull requests for improvements or bug fixes.
+
+---
