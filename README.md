@@ -114,10 +114,3 @@ Visit: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) to see the Swagg
 Feel free to open issues or pull requests for improvements or bug fixes.
 
 ---
-
-## 📜 License
-
-This project is licensed under the MIT License.
-````
-
-Let me know if you'd like a sample `environment.yml` file generated from your existing `requirements.txt`.
