@@ -1,5 +1,3 @@
-Here's your updated and complete `README.md` with **Conda installation instructions** and usage of `environment.yml`, while keeping the original virtualenv setup too for flexibility.
-
 ---
 
 ````markdown
