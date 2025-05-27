@@ -41,7 +41,7 @@ cd brain_tumor_classifier_backend
 
 ## 📁 Step 2: Environment Setup
 
-### 🧰 Option A: Using Conda (Recommended)
+### 🧰 Using Conda (Recommended)
 
 If you are using Conda and want to replicate the exact environment:
 
@@ -59,14 +59,6 @@ conda activate tumor-env
 
 > You can regenerate this file later using:  
 > `conda env export --no-builds > environment.yml`
-
----
-
-Then install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
 
 ---
 
